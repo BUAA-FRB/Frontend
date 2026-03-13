@@ -42,8 +42,8 @@ const techStack = [
 ]
 
 const timeline = [
-  { year: '2023', event: '立项启动，确立"星土感知"技术路线' },
-  { year: '2024 Q1', event: '完成多源遥感数据融合基线模型' },
+  { year: '2025', event: '立项启动，确立"星土感知"技术路线' },
+  { year: '2025 Q1', event: '完成多源遥感数据融合基线模型' },
   { year: '2024 Q3', event: 'RAG 模块与农业知识图谱集成完毕' },
   { year: '2025 Q1', event: '多智能体框架闭环验证，田间试验开始' },
   { year: '2025 Q4', event: '大规模区域灾害治理系统正式部署' },
@@ -53,7 +53,6 @@ const timeline = [
 
 <template>
   <div class="overview">
-
     <!-- Hero -->
     <section class="hero">
       <div class="hero-bg"></div>
@@ -175,7 +174,6 @@ const timeline = [
         </div>
       </div>
     </section>
-
   </div>
 </template>
 
@@ -191,14 +189,18 @@ const timeline = [
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(34,197,94,0.18) 0%, transparent 70%),
-    radial-gradient(ellipse 40% 40% at 80% 80%, rgba(21,128,61,0.1) 0%, transparent 60%);
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(34, 197, 94, 0.18) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 40% at 80% 80%, rgba(21, 128, 61, 0.1) 0%, transparent 60%);
   pointer-events: none;
 }
 
-.hero-inner { position: relative; }
+.hero-inner {
+  position: relative;
+}
 
-.hero-tag { margin-bottom: 1.5rem; }
+.hero-tag {
+  margin-bottom: 1.5rem;
+}
 
 .hero-title {
   font-size: clamp(2rem, 5vw, 3.5rem);
@@ -237,9 +239,14 @@ const timeline = [
   color: #fff;
   font-weight: 600;
   font-size: 0.95rem;
-  transition: background 0.2s, transform 0.15s;
+  transition:
+    background 0.2s,
+    transform 0.15s;
 }
-.btn-primary:hover { background: var(--green-500); transform: translateY(-1px); }
+.btn-primary:hover {
+  background: var(--green-500);
+  transform: translateY(-1px);
+}
 
 .btn-ghost {
   padding: 0.75rem 2rem;
@@ -249,7 +256,10 @@ const timeline = [
   font-size: 0.95rem;
   transition: all 0.2s;
 }
-.btn-ghost:hover { border-color: var(--green-400); color: var(--green-400); }
+.btn-ghost:hover {
+  border-color: var(--green-400);
+  color: var(--green-400);
+}
 
 .hero-stats {
   display: flex;
@@ -322,9 +332,14 @@ const timeline = [
   gap: 1.25rem;
 }
 
-.feature-card { cursor: default; }
+.feature-card {
+  cursor: default;
+}
 
-.feat-icon { font-size: 2rem; margin-bottom: 0.75rem; }
+.feat-icon {
+  font-size: 2rem;
+  margin-bottom: 0.75rem;
+}
 
 .feat-title {
   font-size: 1.05rem;
@@ -333,10 +348,16 @@ const timeline = [
   margin-bottom: 0.5rem;
 }
 
-.feat-desc { font-size: 0.88rem; color: var(--text-muted); line-height: 1.7; }
+.feat-desc {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.7;
+}
 
 /* 架构 */
-.arch-section { padding-top: 2rem; }
+.arch-section {
+  padding-top: 2rem;
+}
 
 .arch-inner {
   display: grid;
@@ -346,10 +367,17 @@ const timeline = [
 }
 
 @media (max-width: 768px) {
-  .arch-inner { grid-template-columns: 1fr; }
+  .arch-inner {
+    grid-template-columns: 1fr;
+  }
 }
 
-.tech-list { margin-top: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem; }
+.tech-list {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
 
 .tech-item {
   display: flex;
@@ -362,8 +390,13 @@ const timeline = [
   font-size: 0.88rem;
 }
 
-.tech-label { color: var(--text-muted); }
-.tech-value { color: var(--green-400); font-weight: 500; }
+.tech-label {
+  color: var(--text-muted);
+}
+.tech-value {
+  color: var(--green-400);
+  font-weight: 500;
+}
 
 .arch-diagram {
   display: flex;
@@ -382,7 +415,9 @@ const timeline = [
   transition: border-color 0.2s;
 }
 
-.arch-layer:hover { border-color: var(--green-400); }
+.arch-layer:hover {
+  border-color: var(--green-400);
+}
 
 .arch-layer span {
   display: block;
@@ -391,13 +426,26 @@ const timeline = [
   color: var(--green-300);
 }
 
-.arch-layer small { font-size: 0.75rem; color: var(--text-muted); }
+.arch-layer small {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
 
-.layer-sense { background: rgba(20, 83, 45, 0.3); }
-.layer-rag   { background: rgba(21, 128, 61, 0.2); }
-.layer-llm   { background: rgba(22, 163, 74, 0.2); }
-.layer-agent { background: rgba(34, 197, 94, 0.15); }
-.layer-action{ background: rgba(74, 222, 128, 0.1); }
+.layer-sense {
+  background: rgba(20, 83, 45, 0.3);
+}
+.layer-rag {
+  background: rgba(21, 128, 61, 0.2);
+}
+.layer-llm {
+  background: rgba(22, 163, 74, 0.2);
+}
+.layer-agent {
+  background: rgba(34, 197, 94, 0.15);
+}
+.layer-action {
+  background: rgba(74, 222, 128, 0.1);
+}
 
 .arch-arrow {
   font-size: 1.2rem;
@@ -444,5 +492,8 @@ const timeline = [
   min-width: 80px;
 }
 
-.tl-event { font-size: 0.92rem; color: var(--text-muted); }
+.tl-event {
+  font-size: 0.92rem;
+  color: var(--text-muted);
+}
 </style>
