@@ -178,6 +178,21 @@ a { text-decoration: none; color: inherit; }
   flex-shrink: 0;
 }
 
+@media (max-width: 640px) {
+  .navbar-inner {
+    padding: 0 1rem;
+    gap: 0.75rem;
+  }
+  .logo-sub { display: none; }
+  .nav-badge { display: none; }
+  .nav-links { gap: 0.1rem; }
+  .nav-item {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.82rem;
+  }
+  .nav-icon { display: none; }
+}
+
 /* ===== 主内容 ===== */
 .main-content {
   min-height: calc(100vh - var(--navbar-h) - 52px);

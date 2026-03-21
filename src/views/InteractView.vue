@@ -1,12 +1,41 @@
 <script setup>
 import { ref, nextTick } from 'vue'
+import NutrientReport from '@/components/NutrientReport.vue'
+import CesiumMap3D from '@/components/CesiumMap3D.vue'
 
 const scenarios = [
-  { id: 'drought', label: '旱灾预警', icon: '☀️', desc: '分析土壤墒情与气象数据，评估旱情等级并给出灌溉建议' },
+  {
+    id: 'drought',
+    label: '旱灾预警',
+    icon: '☀️',
+    desc: '分析土壤墒情与气象数据，评估旱情等级并给出灌溉建议',
+  },
   { id: 'pest', label: '病虫害诊断', icon: '🐛', desc: '上传田间图像，识别病虫害类型及扩散风险' },
-  { id: 'flood', label: '洪涝风险评估', icon: '🌊', desc: '结合遥感积水数据，评估受灾范围与转移优先级' },
-  { id: 'frost', label: '低温冻害', icon: '❄️', desc: '基于气温趋势预测冻害窗口期，给出防护时序建议' },
+  {
+    id: 'frost',
+    label: '低温冻害',
+    icon: '❄️',
+    desc: '基于气温趋势预测冻害窗口期，给出防护时序建议',
+  },
+  {
+    id: 'crop-growth',
+    label: '作物长势智析',
+    icon: '🌱',
+    desc: '上传遥感影像，多智能体协同诊断作物长势与营养缺乏风险',
+  },
 ]
+
+const THINKING_STEPS = [
+  '正在调用图像感知智能体，解析上传影像...',
+  '正在提取植被光谱特征（NDVI / 活力代理）...',
+  '正在检索营养缺乏知识库（已匹配 87 条相关文献）...',
+  '正在融合多时相遥感数据与土壤传感器指标...',
+  '正在调用诊断智能体，执行异常模式识别...',
+  '正在生成治理建议，对接决策智能体...',
+]
+
+const ANALYSIS_ANSWER =
+  '图像中出现了紫色斑块状的异常区域，这些区域与绿色背景形成了鲜明的对比，这通常是由于营养元素缺乏引起的。这些区域呈现出带状或条状的分布模式，边界模糊，并且与健康的植被纹理有显著差异。这种紫色调通常指示氮或磷等关键营养元素的缺乏，而不是其他类型的异常如干枯或双株现象。为了确认营养缺乏的程度并制定相应的施肥计划，建议立即采集土壤样本并进行遥感时序监测。'
 
 const selectedScenario = ref(scenarios[0])
 const inputText = ref('')
@@ -14,45 +43,155 @@ const isLoading = ref(false)
 const messages = ref([
   {
     role: 'assistant',
-    content: '您好！我是**星土感知**农业灾害治理智能体。\n\n请选择一个灾害情境，或直接描述您的田间问题，我将为您进行诊断分析并提供治理建议。',
+    content:
+      '您好！我是**星土感知**农业灾害治理智能体。\n\n请选择一个灾害情境，或直接描述您的田间问题，我将为您进行诊断分析并提供治理建议。',
     time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
   },
 ])
 const chatBox = ref(null)
 
+// 图片上传
+const uploadedImage = ref(null)
+const fileInputRef = ref(null)
+
+// 报告弹窗
+const reportVisible = ref(false)
+
+// 3D 地图面板：上传图片并发送后显示
+const show3DMap = ref(false)
+const map3DKey = ref(0)
+
 function selectScenario(s) {
   selectedScenario.value = s
+  if (s.id !== 'crop-growth') {
+    uploadedImage.value = null
+  }
+}
+
+function handleImageSelect(e) {
+  const file = e.target.files[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = (ev) => {
+    uploadedImage.value = ev.target.result
+  }
+  reader.readAsDataURL(file)
+  e.target.value = ''
+}
+
+function removeImage() {
+  uploadedImage.value = null
+}
+
+function triggerFileInput() {
+  fileInputRef.value?.click()
 }
 
 async function sendMessage() {
   const text = inputText.value.trim()
-  if (!text || isLoading.value) return
+  if ((!text && !uploadedImage.value) || isLoading.value) return
 
+  const imgSnapshot = uploadedImage.value
+
+  // crop-growth 场景上传了图片 → 触发 3D 地图面板
+  if (selectedScenario.value.id === 'crop-growth' && imgSnapshot) {
+    show3DMap.value = true
+    map3DKey.value++ // 重新挂载以重置地图
+  }
   messages.value.push({
     role: 'user',
     content: text,
+    image: imgSnapshot,
     time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
   })
   inputText.value = ''
+  uploadedImage.value = null
   isLoading.value = true
 
   await nextTick()
   scrollToBottom()
 
-  // TODO: 调用后端 Agent API
-  setTimeout(() => {
-    messages.value.push({
-      role: 'assistant',
-      content: getMockResponse(text, selectedScenario.value),
-      time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
-    })
-    isLoading.value = false
-    nextTick(scrollToBottom)
-  }, 1800)
+  if (selectedScenario.value.id === 'crop-growth') {
+    await runCropGrowthAnalysis()
+  } else {
+    await runMockResponse(text)
+  }
+}
+
+async function runMockResponse(text) {
+  await sleep(1800)
+  messages.value.push({
+    role: 'assistant',
+    content: getMockResponse(text, selectedScenario.value),
+    time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+  })
+  isLoading.value = false
+  await nextTick()
+  scrollToBottom()
+}
+
+async function runCropGrowthAnalysis() {
+  const idx = messages.value.length
+  messages.value.push({
+    role: 'assistant',
+    type: 'nutrient-analysis',
+    thinkingSteps: [],
+    thinkingDone: false,
+    content: '',
+    streamingDone: false,
+    progress: -1,
+    reportReady: false,
+    time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+  })
+
+  const msg = messages.value[idx]
+
+  // Phase 1: 逐步展示推理步骤
+  for (const step of THINKING_STEPS) {
+    await sleep(700)
+    msg.thinkingSteps.push(step)
+    await nextTick()
+    scrollToBottom()
+  }
+  await sleep(400)
+  msg.thinkingDone = true
+  await nextTick()
+  scrollToBottom()
+
+  await sleep(300)
+
+  // Phase 2: 流式输出答案
+  for (let i = 0; i < ANALYSIS_ANSWER.length; i++) {
+    await sleep(18)
+    msg.content += ANALYSIS_ANSWER[i]
+    if (i % 8 === 0) {
+      await nextTick()
+      scrollToBottom()
+    }
+  }
+  msg.streamingDone = true
+  await nextTick()
+  scrollToBottom()
+
+  await sleep(600)
+
+  // Phase 3: 进度条
+  msg.progress = 0
+  for (let p = 1; p <= 100; p++) {
+    await sleep(28)
+    msg.progress = p
+  }
+
+  await sleep(400)
+  msg.reportReady = true
+  isLoading.value = false
+  await nextTick()
+  scrollToBottom()
 }
 
 function getMockResponse(input, scenario) {
-  return `【${scenario.label} · 情境分析】\n\n` +
+  return (
+    `【${scenario.label} · 情境分析】\n\n` +
     `**检索增强推理**：已检索农业知识库 142 条相关文档，匹配度 Top-3 来源已融合至推理上下文。\n\n` +
     `**智能体分析**：\n` +
     `- 感知智能体：当前区域土壤含水量 23.4%，低于警戒线 28%\n` +
@@ -63,6 +202,7 @@ function getMockResponse(input, scenario) {
     `2. 喷施抗旱保水剂，减少蒸腾耗水\n` +
     `3. 72 小时后复检土壤墒情，评估灌溉效果\n\n` +
     `_（以上为演示数据，实际响应将由后端 Agent 动态生成）_`
+  )
 }
 
 function scrollToBottom() {
@@ -80,7 +220,11 @@ function handleKeydown(e) {
 
 function useScenarioPrompt(s) {
   selectedScenario.value = s
-  inputText.value = `请分析当前${s.label}情况并给出治理建议。`
+  if (s.id === 'crop-growth') {
+    inputText.value = '请分析这张田间遥感影像，诊断作物长势与营养状况。'
+  } else {
+    inputText.value = `请分析当前${s.label}情况并给出治理建议。`
+  }
 }
 
 function renderMarkdown(text) {
@@ -90,12 +234,19 @@ function renderMarkdown(text) {
     .replace(/_(.+?)_/g, '<em>$1</em>')
     .replace(/\n/g, '<br>')
 }
+
+function isStepActive(msg, idx) {
+  return !msg.thinkingDone && idx === msg.thinkingSteps.length - 1
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
 </script>
 
 <template>
   <div class="interact">
-    <div class="section interact-layout">
-
+    <div class="section interact-layout" :class="{ 'has-map': show3DMap }">
       <!-- 左侧：情境选择 + 说明 -->
       <aside class="sidebar">
         <div class="sidebar-header">
@@ -107,7 +258,7 @@ function renderMarkdown(text) {
             v-for="s in scenarios"
             :key="s.id"
             class="scenario-item"
-            :class="{ active: selectedScenario.id === s.id }"
+            :class="{ active: selectedScenario.id === s.id, 'crop-item': s.id === 'crop-growth' }"
             @click="useScenarioPrompt(s)"
           >
             <span class="s-icon">{{ s.icon }}</span>
@@ -115,53 +266,144 @@ function renderMarkdown(text) {
               <span class="s-label">{{ s.label }}</span>
               <span class="s-desc">{{ s.desc }}</span>
             </div>
+            <span v-if="s.id === 'crop-growth'" class="s-badge">NEW</span>
           </div>
         </div>
 
         <div class="agent-status">
           <div class="status-title">Agent 状态</div>
-          <div class="status-row">
-            <span class="dot online"></span>感知智能体 · 在线
-          </div>
-          <div class="status-row">
-            <span class="dot online"></span>分析智能体 · 在线
-          </div>
-          <div class="status-row">
-            <span class="dot online"></span>决策智能体 · 在线
-          </div>
-          <div class="status-row">
-            <span class="dot standby"></span>执行智能体 · 待命
-          </div>
+          <div class="status-row"><span class="dot online"></span>诊断智能体 · 在线</div>
+          <div class="status-row"><span class="dot online"></span>感知智能体 · 在线</div>
+          <div class="status-row"><span class="dot online"></span>分析智能体 · 在线</div>
+          <div class="status-row"><span class="dot online"></span>决策智能体 · 在线</div>
+          <div class="status-row"><span class="dot standby"></span>执行智能体 · 待命</div>
         </div>
       </aside>
 
       <!-- 右侧：对话区 -->
       <div class="chat-panel">
+        <!-- 移动端场景选择条（仅小屏可见） -->
+        <div class="mobile-scene-bar">
+          <div
+            v-for="s in scenarios"
+            :key="s.id"
+            class="mobile-scene-chip"
+            :class="{ active: selectedScenario.id === s.id }"
+            @click="selectScenario(s)"
+          >
+            <span>{{ s.icon }}</span>
+            <span class="chip-label">{{ s.label }}</span>
+            <span v-if="s.id === 'crop-growth'" class="chip-new">NEW</span>
+          </div>
+        </div>
+
         <div class="chat-header">
           <div class="chat-title">
             <span class="chat-icon">{{ selectedScenario.icon }}</span>
             {{ selectedScenario.label }}
+            <span v-if="selectedScenario.id === 'crop-growth'" class="header-badge">多模态</span>
           </div>
           <span class="chat-model">Qwen2.5-72B + RAG</span>
         </div>
 
         <div class="chat-body" ref="chatBox">
-          <div
-            v-for="(msg, i) in messages"
-            :key="i"
-            class="message"
-            :class="msg.role"
-          >
+          <div v-for="(msg, i) in messages" :key="i" class="message" :class="msg.role">
             <div v-if="msg.role === 'assistant'" class="msg-avatar">🌾</div>
-            <div class="msg-bubble">
-              <div class="msg-content" v-html="renderMarkdown(msg.content)"></div>
-              <span class="msg-time">{{ msg.time }}</span>
-            </div>
+
+            <!-- 用户消息 -->
+            <template v-if="msg.role === 'user'">
+              <div class="msg-bubble user-bubble">
+                <div v-if="msg.image" class="msg-image-preview">
+                  <img :src="msg.image" alt="上传的遥感影像" />
+                  <span class="img-label">遥感影像</span>
+                </div>
+                <div
+                  v-if="msg.content"
+                  class="msg-content"
+                  v-html="renderMarkdown(msg.content)"
+                ></div>
+                <span class="msg-time">{{ msg.time }}</span>
+              </div>
+            </template>
+
+            <!-- 普通助手消息 -->
+            <template v-else-if="!msg.type">
+              <div class="msg-bubble">
+                <div class="msg-content" v-html="renderMarkdown(msg.content)"></div>
+                <span class="msg-time">{{ msg.time }}</span>
+              </div>
+            </template>
+
+            <!-- 长势智析特殊消息 -->
+            <template v-else-if="msg.type === 'nutrient-analysis'">
+              <div class="msg-bubble analysis-bubble">
+                <!-- 推理步骤 -->
+                <div v-if="msg.thinkingSteps.length > 0" class="thinking-chain">
+                  <div class="thinking-label"><span class="think-icon">🧠</span> 推理链路</div>
+                  <div
+                    v-for="(step, si) in msg.thinkingSteps"
+                    :key="si"
+                    class="think-step"
+                    :class="{
+                      'step-done': msg.thinkingDone || si < msg.thinkingSteps.length - 1,
+                      'step-active': isStepActive(msg, si),
+                    }"
+                  >
+                    <span class="step-indicator">
+                      <span
+                        v-if="msg.thinkingDone || si < msg.thinkingSteps.length - 1"
+                        class="step-check"
+                        >✓</span
+                      >
+                      <span v-else class="step-spin"></span>
+                    </span>
+                    <span class="step-text">{{ step }}</span>
+                  </div>
+                </div>
+
+                <!-- 分隔线（思考完后） -->
+                <div v-if="msg.thinkingDone && msg.content" class="think-divider"></div>
+
+                <!-- 流式输出内容 -->
+                <div v-if="msg.content" class="msg-content stream-content">
+                  {{ msg.content }}<span v-if="!msg.streamingDone" class="stream-cursor">|</span>
+                </div>
+
+                <!-- 进度条区域 -->
+                <div v-if="msg.progress >= 0" class="progress-wrap">
+                  <div class="progress-header">
+                    <span class="progress-label">正在为您生成详细的报告</span>
+                    <span class="progress-pct">{{ msg.progress }}%</span>
+                  </div>
+                  <div class="progress-track">
+                    <div class="progress-fill" :style="{ width: msg.progress + '%' }"></div>
+                  </div>
+                </div>
+
+                <!-- 文件卡片 -->
+                <div v-if="msg.reportReady" class="file-card" @click="reportVisible = true">
+                  <div class="file-icon-wrap">
+                    <span class="file-icon">📄</span>
+                  </div>
+                  <div class="file-info">
+                    <div class="file-name">作物营养缺乏诊断报告.md</div>
+                    <div class="file-meta">Markdown · 完整分析报告 · 8 sections</div>
+                  </div>
+                  <div class="file-open">
+                    <span>打开</span>
+                    <span class="file-arrow">→</span>
+                  </div>
+                </div>
+
+                <span class="msg-time">{{ msg.time }}</span>
+              </div>
+            </template>
+
             <div v-if="msg.role === 'user'" class="msg-avatar user-avatar">👤</div>
           </div>
 
           <!-- 加载中 -->
-          <div v-if="isLoading" class="message assistant">
+          <div v-if="isLoading && selectedScenario.id !== 'crop-growth'" class="message assistant">
             <div class="msg-avatar">🌾</div>
             <div class="msg-bubble loading-bubble">
               <span class="dot-pulse"></span>
@@ -173,17 +415,61 @@ function renderMarkdown(text) {
 
         <div class="chat-input-area">
           <div class="input-hint">
-            当前情境：<strong>{{ selectedScenario.label }}</strong> · 按 Enter 发送，Shift+Enter 换行
+            <template v-if="selectedScenario.id === 'crop-growth'">
+              <span class="hint-crop">🌱 作物长势智析</span> · 支持上传遥感影像 · 按 Enter 发送
+            </template>
+            <template v-else>
+              当前情境：<strong>{{ selectedScenario.label }}</strong> · 按 Enter 发送，Shift+Enter
+              换行
+            </template>
           </div>
+
+          <!-- 图片预览 -->
+          <div v-if="uploadedImage" class="image-preview-bar">
+            <div class="preview-thumb-wrap">
+              <img :src="uploadedImage" alt="预览" class="preview-thumb" />
+              <div class="preview-info">
+                <span class="preview-name">遥感影像</span>
+                <span class="preview-ready">已就绪，可发送</span>
+              </div>
+            </div>
+            <button class="remove-img-btn" @click="removeImage" title="移除图片">✕</button>
+          </div>
+
           <div class="input-row">
+            <!-- 上传按钮（仅长势智析场景显示） -->
+            <button
+              v-if="selectedScenario.id === 'crop-growth'"
+              class="upload-btn"
+              @click="triggerFileInput"
+              title="上传遥感影像"
+            >
+              <span class="upload-icon">🖼</span>
+            </button>
+            <input
+              ref="fileInputRef"
+              type="file"
+              accept="image/*"
+              style="display: none"
+              @change="handleImageSelect"
+            />
+
             <textarea
               v-model="inputText"
               class="chat-input"
-              placeholder="描述您的田间问题，例如：近期叶片出现黄斑，请分析可能的病因..."
+              :placeholder="
+                selectedScenario.id === 'crop-growth'
+                  ? '上传遥感影像或描述田间问题，例如：叶片出现紫色斑块...'
+                  : '描述您的田间问题，例如：近期叶片出现黄斑，请分析可能的病因...'
+              "
               rows="3"
               @keydown="handleKeydown"
             ></textarea>
-            <button class="send-btn" :disabled="isLoading || !inputText.trim()" @click="sendMessage">
+            <button
+              class="send-btn"
+              :disabled="isLoading || (!inputText.trim() && !uploadedImage)"
+              @click="sendMessage"
+            >
               <span v-if="!isLoading">发送</span>
               <span v-else>推理中</span>
             </button>
@@ -191,12 +477,36 @@ function renderMarkdown(text) {
         </div>
       </div>
 
+      <!-- 3D 地图列（网格内联，不遮挡聊天框） -->
+      <Transition name="map-slide">
+        <div v-if="show3DMap" class="map3d-panel">
+          <div class="map3d-header">
+            <div class="map3d-title">
+              <span class="map3d-icon">🗺️</span>
+              区域 3D 卫星视图
+            </div>
+            <button class="map3d-close" @click="show3DMap = false" title="关闭">✕</button>
+          </div>
+          <div class="map3d-body">
+            <CesiumMap3D :key="map3DKey" />
+          </div>
+          <div class="map3d-footer">
+            <span class="map3d-region">📍 河南省周口 · 小麦主产区</span>
+            <span class="map3d-note">遥感影像匹配区域</span>
+          </div>
+        </div>
+      </Transition>
     </div>
+
+    <!-- 报告弹窗 -->
+    <NutrientReport :visible="reportVisible" @close="reportVisible = false" />
   </div>
 </template>
 
 <style scoped>
-.interact { min-height: calc(100vh - 116px); }
+.interact {
+  min-height: calc(100vh - 116px);
+}
 
 .interact-layout {
   display: grid;
@@ -205,10 +515,17 @@ function renderMarkdown(text) {
   align-items: start;
   padding-top: 2rem;
   padding-bottom: 2rem;
+  transition: grid-template-columns 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.interact-layout.has-map {
+  grid-template-columns: 300px 1fr 400px;
 }
 
 @media (max-width: 900px) {
-  .interact-layout { grid-template-columns: 1fr; }
+  .interact-layout {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* 侧边栏 */
@@ -220,9 +537,17 @@ function renderMarkdown(text) {
   gap: 1rem;
 }
 
-.sidebar-hint { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem; }
+.sidebar-hint {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+}
 
-.scenario-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.scenario-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
 
 .scenario-item {
   display: flex;
@@ -234,20 +559,60 @@ function renderMarkdown(text) {
   background: var(--bg-card);
   cursor: pointer;
   transition: all 0.2s;
+  position: relative;
 }
 
 .scenario-item:hover,
 .scenario-item.active {
   border-color: var(--green-500);
-  background: rgba(34,197,94,0.08);
+  background: rgba(34, 197, 94, 0.08);
 }
 
-.s-icon { font-size: 1.3rem; flex-shrink: 0; }
+.crop-item {
+  border-color: rgba(34, 197, 94, 0.2);
+}
 
-.s-info { display: flex; flex-direction: column; gap: 0.2rem; }
+.crop-item.active {
+  background: rgba(34, 197, 94, 0.1);
+  box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.15);
+}
 
-.s-label { font-size: 0.88rem; font-weight: 600; color: var(--text-main); }
-.s-desc  { font-size: 0.75rem; color: var(--text-muted); line-height: 1.4; }
+.s-badge {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.6rem;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--green-400);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+}
+
+.s-icon {
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+
+.s-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.s-label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.s-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
 
 .agent-status {
   background: var(--bg-card);
@@ -275,12 +640,20 @@ function renderMarkdown(text) {
 }
 
 .dot {
-  width: 7px; height: 7px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   flex-shrink: 0;
 }
-.dot.online  { background: var(--green-500); box-shadow: 0 0 6px var(--green-500); }
-.dot.standby { background: #a3a3a3; }
+
+.dot.online {
+  background: var(--green-500);
+  box-shadow: 0 0 6px var(--green-500);
+}
+
+.dot.standby {
+  background: #a3a3a3;
+}
 
 /* 对话面板 */
 .chat-panel {
@@ -311,7 +684,20 @@ function renderMarkdown(text) {
   font-size: 1rem;
 }
 
-.chat-icon { font-size: 1.2rem; }
+.header-badge {
+  font-size: 0.65rem;
+  font-weight: 600;
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--green-400);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  letter-spacing: 0.05em;
+}
+
+.chat-icon {
+  font-size: 1.2rem;
+}
 
 .chat-model {
   font-size: 0.75rem;
@@ -338,7 +724,9 @@ function renderMarkdown(text) {
   gap: 0.75rem;
 }
 
-.message.user { flex-direction: row-reverse; }
+.message.user {
+  flex-direction: row-reverse;
+}
 
 .msg-avatar {
   width: 34px;
@@ -353,7 +741,9 @@ function renderMarkdown(text) {
   flex-shrink: 0;
 }
 
-.user-avatar { background: rgba(34,197,94,0.1); }
+.user-avatar {
+  background: rgba(34, 197, 94, 0.1);
+}
 
 .msg-bubble {
   max-width: 75%;
@@ -365,18 +755,266 @@ function renderMarkdown(text) {
   line-height: 1.7;
 }
 
-.message.user .msg-bubble {
+.user-bubble {
   background: rgba(21, 128, 61, 0.2);
-  border-color: rgba(34,197,94,0.25);
+  border-color: rgba(34, 197, 94, 0.25);
+}
+
+.analysis-bubble {
+  max-width: 85%;
 }
 
 .msg-time {
   display: block;
   font-size: 0.7rem;
   color: var(--text-muted);
-  margin-top: 0.4rem;
+  margin-top: 0.5rem;
 }
 
+/* 用户图片预览 */
+.msg-image-preview {
+  margin-bottom: 0.6rem;
+  position: relative;
+}
+
+.msg-image-preview img {
+  max-width: 220px;
+  max-height: 160px;
+  border-radius: 10px;
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  display: block;
+  object-fit: cover;
+}
+
+.img-label {
+  position: absolute;
+  bottom: 0.4rem;
+  left: 0.4rem;
+  font-size: 0.65rem;
+  background: rgba(0, 0, 0, 0.6);
+  color: #86efac;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+}
+
+/* 思考链 */
+.thinking-chain {
+  background: rgba(34, 197, 94, 0.04);
+  border: 1px solid rgba(34, 197, 94, 0.12);
+  border-radius: 10px;
+  padding: 0.8rem 1rem;
+  margin-bottom: 0;
+}
+
+.thinking-label {
+  font-size: 0.72rem;
+  color: #4ade80;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.think-icon {
+  font-size: 0.85rem;
+}
+
+.think-step {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.3rem 0;
+  font-size: 0.8rem;
+  color: #4b7a59;
+  transition: color 0.3s;
+}
+
+.think-step.step-done {
+  color: #6b9e7a;
+}
+
+.think-step.step-active {
+  color: #86efac;
+}
+
+.step-indicator {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.step-check {
+  font-size: 0.75rem;
+  color: var(--green-500);
+}
+
+.step-spin {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(34, 197, 94, 0.2);
+  border-top-color: #22c55e;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.think-divider {
+  height: 1px;
+  background: rgba(34, 197, 94, 0.12);
+  margin: 0.85rem 0 0.75rem;
+}
+
+/* 流式内容 */
+.stream-content {
+  font-size: 0.88rem;
+  color: var(--text-main);
+  line-height: 1.75;
+}
+
+.stream-cursor {
+  display: inline-block;
+  color: var(--green-400);
+  animation: blink 0.9s step-end infinite;
+  font-weight: 300;
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+/* 进度条 */
+.progress-wrap {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  background: rgba(34, 197, 94, 0.04);
+  border: 1px solid rgba(34, 197, 94, 0.12);
+  border-radius: 10px;
+}
+
+.progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.progress-label {
+  font-size: 0.78rem;
+  color: #6b9e7a;
+}
+
+.progress-pct {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--green-400);
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-track {
+  height: 5px;
+  background: rgba(34, 197, 94, 0.1);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #16a34a 0%, #22c55e 60%, #4ade80 100%);
+  border-radius: 99px;
+  transition: width 0.05s linear;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+}
+
+/* 文件卡片 */
+.file-card {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-top: 0.85rem;
+  padding: 0.85rem 1rem;
+  background: rgba(34, 197, 94, 0.06);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.file-card:hover {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.4);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.file-icon-wrap {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.file-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.file-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #d1fae5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-meta {
+  font-size: 0.72rem;
+  color: #4b7a59;
+  margin-top: 0.15rem;
+}
+
+.file-open {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  color: var(--green-400);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.file-arrow {
+  transition: transform 0.2s;
+}
+
+.file-card:hover .file-arrow {
+  transform: translateX(3px);
+}
+
+/* Loading */
 .loading-bubble {
   display: flex;
   align-items: center;
@@ -386,17 +1024,32 @@ function renderMarkdown(text) {
 }
 
 .dot-pulse {
-  width: 7px; height: 7px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--green-500);
   animation: pulse 1.2s ease-in-out infinite;
 }
-.dot-pulse:nth-child(2) { animation-delay: 0.2s; }
-.dot-pulse:nth-child(3) { animation-delay: 0.4s; }
+
+.dot-pulse:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.dot-pulse:nth-child(3) {
+  animation-delay: 0.4s;
+}
 
 @keyframes pulse {
-  0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; }
-  40% { transform: scale(1); opacity: 1; }
+  0%,
+  80%,
+  100% {
+    transform: scale(0.7);
+    opacity: 0.4;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 /* 输入区 */
@@ -412,12 +1065,107 @@ function renderMarkdown(text) {
   margin-bottom: 0.6rem;
 }
 
-.input-hint strong { color: var(--green-400); }
+.input-hint strong {
+  color: var(--green-400);
+}
+
+.hint-crop {
+  color: var(--green-400);
+  font-weight: 600;
+}
+
+/* 图片预览条 */
+.image-preview-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.5rem;
+  background: rgba(34, 197, 94, 0.05);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  border-radius: 10px;
+}
+
+.preview-thumb-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex: 1;
+}
+
+.preview-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid rgba(34, 197, 94, 0.25);
+}
+
+.preview-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.preview-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #d1fae5;
+}
+
+.preview-ready {
+  font-size: 0.7rem;
+  color: var(--green-400);
+}
+
+.remove-img-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid rgba(34, 197, 94, 0.15);
+  background: transparent;
+  color: #4b7a59;
+  cursor: pointer;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.remove-img-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
 
 .input-row {
   display: flex;
   gap: 0.75rem;
   align-items: flex-end;
+}
+
+.upload-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  background: rgba(34, 197, 94, 0.06);
+  color: var(--green-400);
+  cursor: pointer;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s;
+  margin-bottom: 0;
+  align-self: flex-end;
+}
+
+.upload-btn:hover {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.45);
 }
 
 .chat-input {
@@ -435,8 +1183,13 @@ function renderMarkdown(text) {
   transition: border-color 0.2s;
 }
 
-.chat-input:focus { border-color: var(--green-500); }
-.chat-input::placeholder { color: var(--text-muted); }
+.chat-input:focus {
+  border-color: var(--green-500);
+}
+
+.chat-input::placeholder {
+  color: var(--text-muted);
+}
 
 .send-btn {
   padding: 0.75rem 1.5rem;
@@ -447,11 +1200,374 @@ function renderMarkdown(text) {
   font-weight: 600;
   font-size: 0.88rem;
   cursor: pointer;
-  transition: background 0.2s, opacity 0.2s;
+  transition:
+    background 0.2s,
+    opacity 0.2s;
   white-space: nowrap;
   height: fit-content;
+  align-self: flex-end;
 }
 
-.send-btn:hover:not(:disabled) { background: var(--green-600); }
-.send-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.send-btn:hover:not(:disabled) {
+  background: var(--green-600);
+}
+
+.send-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ===== 移动端场景条（桌面隐藏） ===== */
+.mobile-scene-bar {
+  display: none;
+}
+
+/* ===== 移动端适配 ===== */
+@media (max-width: 768px) {
+  /* 布局：隐藏侧边栏，聊天面板占满 */
+  .interact-layout {
+    grid-template-columns: 1fr;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+    gap: 0;
+  }
+
+  /* 完全隐藏桌面侧边栏 */
+  .sidebar {
+    display: none;
+  }
+
+  /* 聊天面板占满剩余高度 */
+  .chat-panel {
+    height: calc(100vh - 64px - 52px - 1rem);
+    height: calc(100dvh - 64px - 52px - 1rem);
+    min-height: 400px;
+    border-radius: 12px;
+  }
+
+  /* 移动端场景条 */
+  .mobile-scene-bar {
+    display: flex;
+    overflow-x: auto;
+    gap: 0.4rem;
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    scrollbar-width: none;
+    background: rgba(17, 26, 20, 0.6);
+  }
+
+  .mobile-scene-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mobile-scene-chip {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    white-space: nowrap;
+    flex-shrink: 0;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    transition: all 0.18s;
+    position: relative;
+  }
+
+  .mobile-scene-chip.active {
+    border-color: var(--green-500);
+    background: rgba(34, 197, 94, 0.1);
+    color: var(--green-400);
+  }
+
+  .chip-label {
+    font-size: 0.78rem;
+    font-weight: 500;
+  }
+
+  .chip-new {
+    font-size: 0.55rem;
+    font-weight: 700;
+    background: rgba(34, 197, 94, 0.15);
+    color: var(--green-400);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    padding: 0.05rem 0.25rem;
+    border-radius: 3px;
+    letter-spacing: 0.04em;
+  }
+
+  /* 聊天头部 */
+  .chat-header {
+    padding: 0.65rem 1rem;
+  }
+
+  .chat-title {
+    font-size: 0.9rem;
+  }
+
+  .chat-model {
+    display: none;
+  }
+
+  .header-badge {
+    display: none;
+  }
+
+  /* 消息区 */
+  .chat-body {
+    padding: 0.85rem;
+    gap: 0.85rem;
+  }
+
+  .msg-bubble {
+    max-width: 90%;
+    padding: 0.7rem 0.9rem;
+    font-size: 0.85rem;
+  }
+
+  .analysis-bubble {
+    max-width: 97%;
+  }
+
+  /* 用户图片 */
+  .msg-image-preview img {
+    max-width: 150px;
+    max-height: 110px;
+  }
+
+  /* 推理链 */
+  .thinking-chain {
+    padding: 0.6rem 0.75rem;
+  }
+
+  .think-step {
+    font-size: 0.75rem;
+    padding: 0.18rem 0;
+    gap: 0.4rem;
+  }
+
+  /* 进度条 */
+  .progress-wrap {
+    padding: 0.6rem 0.75rem;
+    margin-top: 0.75rem;
+  }
+
+  .progress-label {
+    font-size: 0.72rem;
+  }
+
+  /* 文件卡片 */
+  .file-card {
+    padding: 0.65rem 0.75rem;
+    gap: 0.55rem;
+    margin-top: 0.75rem;
+  }
+
+  .file-meta {
+    display: none;
+  }
+
+  .file-name {
+    font-size: 0.8rem;
+  }
+
+  .file-icon-wrap {
+    width: 32px;
+    height: 32px;
+    font-size: 0.95rem;
+  }
+
+  .file-open {
+    font-size: 0.75rem;
+  }
+
+  /* 输入区 */
+  .chat-input-area {
+    padding: 0.6rem 0.85rem;
+  }
+
+  .input-hint {
+    font-size: 0.7rem;
+    margin-bottom: 0.4rem;
+  }
+
+  .image-preview-bar {
+    padding: 0.4rem 0.6rem;
+    margin-bottom: 0.4rem;
+  }
+
+  .preview-thumb {
+    width: 36px;
+    height: 36px;
+  }
+
+  .chat-input {
+    font-size: 0.85rem;
+    padding: 0.55rem 0.75rem;
+  }
+
+  .upload-btn {
+    width: 38px;
+    height: 38px;
+    font-size: 1rem;
+  }
+
+  .send-btn {
+    padding: 0.55rem 0.9rem;
+    font-size: 0.82rem;
+  }
+}
+
+/* 极小屏（≤400px） */
+@media (max-width: 400px) {
+  .chat-panel {
+    border-radius: 8px;
+  }
+
+  .msg-bubble {
+    max-width: 93%;
+    font-size: 0.83rem;
+  }
+
+  .analysis-bubble {
+    max-width: 99%;
+  }
+
+  .chat-body {
+    padding: 0.65rem;
+  }
+
+  .thinking-chain {
+    padding: 0.5rem 0.6rem;
+  }
+
+  .think-step {
+    font-size: 0.7rem;
+  }
+
+  .mobile-scene-bar {
+    padding: 0.5rem 0.65rem;
+  }
+}
+
+/* ===== 3D 地图面板 ===== */
+.map3d-panel {
+  /* 网格列内联，不遮挡聊天框 */
+  position: sticky;
+  top: calc(64px + 1rem);
+  height: calc(100vh - 180px);
+  min-height: 500px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.map3d-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.1rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.map3d-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.map3d-icon {
+  font-size: 1rem;
+}
+
+.map3d-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.18s;
+}
+
+.map3d-close:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+.map3d-body {
+  flex: 1;
+  min-height: 0;
+  padding: 0.75rem;
+}
+
+.map3d-footer {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 1.1rem;
+  border-top: 1px solid var(--border);
+  background: rgba(34, 197, 94, 0.03);
+}
+
+.map3d-region {
+  font-size: 0.74rem;
+  color: var(--green-400);
+  font-weight: 500;
+}
+
+.map3d-note {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+/* 滑入动画 */
+.map-slide-enter-active {
+  transition:
+    transform 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.3s ease;
+}
+
+.map-slide-leave-active {
+  transition:
+    transform 0.28s cubic-bezier(0.55, 0, 1, 0.45),
+    opacity 0.25s ease;
+}
+
+.map-slide-enter-from,
+.map-slide-leave-to {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+@media (max-width: 768px) {
+  .map3d-panel {
+    width: 100%;
+    top: auto;
+    bottom: 0;
+    height: 55vh;
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+}
 </style>
