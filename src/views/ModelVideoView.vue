@@ -17,34 +17,12 @@ const videoSourceCandidates = [
 ]
 const activeVideoSource = computed(() => videoSourceCandidates[videoSourceIndex.value])
 
-const brainRegions = [
-  { id: 'planner', label: '任务规划' },
-  { id: 'vision', label: '视觉理解' },
-  { id: 'geo', label: '空间推理' },
-  { id: 'executor', label: '执行决策' },
-]
-
-const brainPathMap = {
-  planner: {
-    d: 'M70 110 C40 95,38 56,70 38 C94 24,122 31,136 49 C150 67,144 92,122 103 C103 114,86 118,70 110 Z',
-    x: 94,
-    y: 72,
-  },
-  vision: {
-    d: 'M73 112 C47 122,45 160,75 178 C102 194,131 186,144 166 C156 146,148 126,127 118 C106 110,91 108,73 112 Z',
-    x: 98,
-    y: 150,
-  },
-  geo: {
-    d: 'M290 110 C320 95,322 56,290 38 C266 24,238 31,224 49 C210 67,216 92,238 103 C257 114,274 118,290 110 Z',
-    x: 262,
-    y: 72,
-  },
-  executor: {
-    d: 'M287 112 C313 122,315 160,285 178 C258 194,229 186,216 166 C204 146,212 126,233 118 C254 110,269 108,287 112 Z',
-    x: 262,
-    y: 150,
-  },
+const brainImageMap = {
+  gray: '/brain_gray.jpg',
+  red: '/brain_red.jpg',
+  green: '/brain_green.jpg',
+  yellow: '/brain_yellow.jpg',
+  blue: '/brain_blue.jpg',
 }
 
 // 时间段配置：后续只改这里即可
@@ -52,49 +30,49 @@ const stageConfigs = [
   {
     start: 0,
     end: 6,
-    brainHighlight: ['vision', 'geo'],
+    brainFlash: { color: 'red', blink: true, intervalMs: 320 },
     histories: ['道路/土地骨架化', '农田实例分割', '统一坐标、分辨率与切片金字塔'],
   },
   {
     start: 6,
     end: 13,
-    brainHighlight: ['vision'],
+    brainFlash: { color: 'yellow', blink: true, intervalMs: 320 },
     histories: ['区域轮廓矢量化'],
   },
   {
     start: 13,
     end: 18,
-    brainHighlight: ['planner', 'vision'],
+    brainFlash: { color: 'green', blink: true, intervalMs: 320 },
     histories: ['区域可别等级划分'],
   },
   {
     start: 18,
     end: 25,
-    brainHighlight: ['planner', 'geo'],
+    brainFlash: { color: 'blue', blink: true, intervalMs: 320 },
     histories: ['略略略'],
   },
   {
     start: 25,
     end: 30,
-    brainHighlight: ['planner', 'executor'],
+    brainFlash: { color: 'red', blink: true, intervalMs: 320 },
     histories: ['略略略'],
   },
   {
     start: 30,
     end: 40,
-    brainHighlight: ['geo', 'executor'],
+    brainFlash: { color: 'yellow', blink: true, intervalMs: 320 },
     histories: ['略略略'],
   },
   {
     start: 40,
     end: 48,
-    brainHighlight: ['vision', 'executor'],
+    brainFlash: { color: 'blue', blink: true, intervalMs: 320 },
     histories: ['略略略'],
   },
   {
     start: 48,
     end: Number.POSITIVE_INFINITY,
-    brainHighlight: ['planner', 'vision', 'geo', 'executor'],
+    brainFlash: { color: 'green', blink: true, intervalMs: 320 },
     histories: ['略略略'],
   },
 ]
@@ -107,13 +85,43 @@ const activeStageIndex = computed(() =>
     (stage) => currentTime.value >= stage.start && currentTime.value < stage.end,
   ),
 )
-const activeBrainRegions = computed(() => new Set(activeStage.value?.brainHighlight ?? []))
-const brainShapeRegions = computed(() =>
-  brainRegions.map((region) => ({
-    ...region,
-    ...brainPathMap[region.id],
-  })),
-)
+const brainBlinkOn = ref(true)
+const brainBlinkTimer = ref(null)
+
+const clearBrainBlinkTimer = () => {
+  if (!brainBlinkTimer.value) return
+  clearInterval(brainBlinkTimer.value)
+  brainBlinkTimer.value = null
+}
+
+const setupBrainBlinkByStage = () => {
+  clearBrainBlinkTimer()
+
+  const flashCfg = activeStage.value?.brainFlash
+  brainBlinkOn.value = true
+  if (!flashCfg || !flashCfg.blink) return
+
+  const intervalMs = Math.max(120, flashCfg.intervalMs || 320)
+  brainBlinkTimer.value = setInterval(() => {
+    brainBlinkOn.value = !brainBlinkOn.value
+  }, intervalMs)
+}
+
+const activeBrainImage = computed(() => {
+  const flashCfg = activeStage.value?.brainFlash
+  if (!flashCfg || !flashCfg.color) return brainImageMap.gray
+
+  const highlightImage = brainImageMap[flashCfg.color] || brainImageMap.gray
+  if (!flashCfg.blink) return highlightImage
+  return brainBlinkOn.value ? highlightImage : brainImageMap.gray
+})
+
+const preloadBrainImages = () => {
+  Object.values(brainImageMap).forEach((src) => {
+    const img = new Image()
+    img.src = src
+  })
+}
 
 const displayedHistory = ref([])
 const processedStageIndex = ref(-1)
@@ -203,6 +211,10 @@ watch(activeStageIndex, (stageIndex) => {
   processedStageIndex.value = stageIndex
 })
 
+watch(activeStageIndex, () => {
+  setupBrainBlinkByStage()
+})
+
 watch(
   displayedHistory,
   async () => {
@@ -236,12 +248,15 @@ watch(videoSourceIndex, async () => {
 
 onMounted(() => {
   document.body.classList.add('model-video-page')
+  preloadBrainImages()
+  setupBrainBlinkByStage()
   void tryStartPlayback()
 })
 
 onBeforeUnmount(() => {
   document.body.classList.remove('model-video-page')
   clearAppendTimers()
+  clearBrainBlinkTimer()
   if (videoRef.value) {
     videoRef.value.pause()
   }
@@ -280,31 +295,7 @@ onBeforeUnmount(() => {
           </div>
 
           <div class="brain-grid">
-            <svg viewBox="0 0 360 220" class="brain-svg" aria-label="大脑分区示意图">
-              <path
-                d="M180 34 C160 32,148 41,143 56 C136 42,122 33,102 35 C73 38,50 58,45 85 C41 105,50 122,66 133 C52 149,50 174,66 191 C85 212,122 216,145 198 C154 213,168 220,180 220 C192 220,206 213,215 198 C238 216,275 212,294 191 C310 174,308 149,294 133 C310 122,319 105,315 85 C310 58,287 38,258 35 C238 33,224 42,217 56 C212 41,200 32,180 34 Z"
-                class="brain-outline"
-              />
-              <line x1="180" y1="38" x2="180" y2="208" class="brain-center-line" />
-
-              <g
-                v-for="region in brainShapeRegions"
-                :key="region.id"
-                class="brain-region"
-                :class="{ active: activeBrainRegions.has(region.id) }"
-              >
-                <path :d="region.d" class="brain-region-shape" />
-                <text
-                  :x="region.x"
-                  :y="region.y"
-                  text-anchor="middle"
-                  dominant-baseline="middle"
-                  class="brain-label"
-                >
-                  {{ region.label }}
-                </text>
-              </g>
-            </svg>
+            <img :src="activeBrainImage" alt="大脑能力调用状态" class="brain-image" />
           </div>
         </article>
 
@@ -502,61 +493,24 @@ onBeforeUnmount(() => {
   aspect-ratio: 1.64 / 1;
   margin: 0 auto;
   padding: 0.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 28px;
   border: 1px solid rgba(214, 217, 202, 0.9);
-  background: radial-gradient(
-    circle at 50% 40%,
-    rgba(251, 252, 249, 0.95),
-    rgba(213, 220, 206, 0.88)
-  );
+  background: rgb(247, 247, 247);
+  overflow: hidden;
 }
 
-.brain-svg {
-  width: 100%;
-  height: 100%;
+.brain-image {
+  width: 90%;
+  height: 90%;
   display: block;
-}
-
-.brain-outline {
-  fill: rgba(188, 199, 183, 0.58);
-  stroke: rgba(131, 143, 118, 0.7);
-  stroke-width: 2;
-}
-
-.brain-center-line {
-  stroke: rgba(120, 133, 108, 0.5);
-  stroke-width: 1.5;
-  stroke-dasharray: 4 4;
-}
-
-.brain-region {
-  transition: all 0.25s ease;
-}
-
-.brain-region-shape {
-  fill: rgba(228, 233, 222, 0.94);
-  stroke: rgba(155, 171, 138, 0.65);
-  stroke-width: 1.2;
-}
-
-.brain-label {
-  font-size: 13px;
-  fill: #4a5a47;
-  font-weight: 600;
-}
-
-.brain-region.active {
-  filter: drop-shadow(0 0 10px rgba(227, 230, 227, 0.3));
-}
-
-.brain-region.active .brain-region-shape {
-  fill: rgba(255, 255, 255, 0.98);
-  stroke: rgba(120, 136, 104, 0.92);
-}
-
-.brain-region.active .brain-label {
-  fill: #30402f;
-  font-weight: 700;
+  margin: 0;
+  object-fit: contain;
+  border-radius: 22px;
+  max-width: 100%;
+  max-height: 100%;
 }
 
 .history-card {
