@@ -18,21 +18,37 @@ const FIELD_POLYGON = [
   { lat: 35.569867, lng: 118.464944 },  // 西南
 ]
 
+// 四边形重心（用于向外扩张）
+const POLY_CENTER = {
+  lat: (35.570250 + 35.570181 + 35.569817 + 35.569867) / 4,
+  lng: (118.465047 + 118.465500 + 118.465408 + 118.464944) / 4,
+}
+function expandedPath(factor) {
+  return FIELD_POLYGON.map(p => ({
+    lat: POLY_CENTER.lat + (p.lat - POLY_CENTER.lat) * factor,
+    lng: POLY_CENTER.lng + (p.lng - POLY_CENTER.lng) * factor,
+  }))
+}
+
 const GOOGLE_API_KEY = 'AIzaSyDqEhyNZFNTP3-XcCjTHxmO_TdLKod7zt8'
 
-const mapContainer = ref(null)
-const isReady = ref(false)
-const loadError = ref(false)
-const errorMsg = ref('')
-const isPaused = ref(false)
+const mapContainer  = ref(null)
+const isReady       = ref(false)
+const loadError     = ref(false)
+const errorMsg      = ref('')
+const isPaused      = ref(false)
+const tipVisible    = ref(false)
+const tipX          = ref(0)
+const tipY          = ref(0)
 
 let gmap        = null
 let polyOverlay = null
 let animFrame   = null
 let lastTs      = 0
 let zoomCur     = ZOOM_FAR
-let zoomDone    = false   // 俯冲完成标志
-let pPhase      = 0       // 高亮脉冲相位
+let zoomDone    = false
+let pPhase      = 0
+let isHovered   = false
 
 function loadGoogleMapsScript() {
   return new Promise((resolve, reject) => {
@@ -69,7 +85,7 @@ async function initMap() {
     tilt: 45,
     heading: 0,
     disableDefaultUI: true,
-    gestureHandling: 'none',
+    gestureHandling:  'greedy',
     keyboardShortcuts: false,
     backgroundColor: '#050d0a',
   })
@@ -91,6 +107,43 @@ function addHighlight() {
     strokeWeight:  2,
     map:           gmap,
   })
+
+  polyOverlay.addListener('mouseover', (e) => {
+    isHovered = true
+    polyOverlay.setOptions({
+      paths:         expandedPath(1.18),
+      fillColor:     '#f59e0b',
+      fillOpacity:   0.28,
+      strokeColor:   '#fbbf24',
+      strokeOpacity: 1.0,
+      strokeWeight:  3,
+    })
+    updateTip(e.domEvent)
+    tipVisible.value = true
+  })
+
+  polyOverlay.addListener('mousemove', (e) => {
+    updateTip(e.domEvent)
+  })
+
+  polyOverlay.addListener('mouseout', () => {
+    isHovered = false
+    tipVisible.value = false
+    polyOverlay.setOptions({
+      paths:         FIELD_POLYGON,
+      fillColor:     '#22c55e',
+      fillOpacity:   0.18,
+      strokeColor:   '#4ade80',
+      strokeOpacity: 0.9,
+      strokeWeight:  2,
+    })
+  })
+}
+
+function updateTip(domEvent) {
+  const rect = mapContainer.value.getBoundingClientRect()
+  tipX.value = domEvent.clientX - rect.left + 14
+  tipY.value = domEvent.clientY - rect.top  - 44
 }
 
 function startAnim() {
@@ -108,8 +161,8 @@ function startAnim() {
       gmap.setZoom(zoomCur)
     }
 
-    // ── 高亮脉冲（始终运行）──────────────────
-    if (polyOverlay) {
+    // ── 高亮脉冲（悬停时跳过，避免覆盖 hover 样式）──────
+    if (polyOverlay && !isHovered) {
       pPhase += 0.08
       polyOverlay.setOptions({
         fillOpacity:   0.12 + Math.abs(Math.sin(pPhase)) * 0.18,
@@ -155,18 +208,27 @@ onBeforeUnmount(() => {
       <span>{{ errorMsg || '地图加载失败，请检查网络或 API Key' }}</span>
     </div>
 
-    <!-- 顶部信息栏 -->
+    <!-- 右上角坐标 -->
     <div v-if="isReady" class="map-overlay-top">
-      <span class="map-badge">🛰️ 农田卫星视图</span>
       <span class="map-coord">118.47°E · 35.57°N · 117m</span>
     </div>
 
     <!-- Google Maps 容器 -->
     <div ref="mapContainer" class="map-container"></div>
 
-    <!-- 底部：地点 + 暂停按钮 -->
+    <!-- 悬停提示浮层 -->
+    <Transition name="tip">
+      <div
+        v-if="tipVisible"
+        class="field-tip"
+        :style="{ left: tipX + 'px', top: tipY + 'px' }"
+      >
+        ⚠️ 缺失氮磷等营养元素
+      </div>
+    </Transition>
+
+    <!-- 右下角暂停按钮 -->
     <div v-if="isReady" class="map-footer">
-      <span>📍 山东·农田监测区</span>
       <button class="btn-pause" @click="togglePause">
         <span v-if="isPaused">▶ 继续</span>
         <span v-else>⏸ 静止</span>
@@ -241,7 +303,7 @@ onBeforeUnmount(() => {
   z-index: 5;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   pointer-events: none;
 }
 
@@ -284,7 +346,26 @@ onBeforeUnmount(() => {
   color: #6b9e7a;
 }
 
-/* ——— 暂停/继续按钮 ——— */
+/* ——— 悬停提示 ——— */
+.field-tip {
+  position: absolute;
+  z-index: 20;
+  pointer-events: none;
+  background: rgba(5, 13, 10, 0.93);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.5);
+  border-radius: 8px;
+  padding: 5px 13px;
+  font-size: 12px;
+  white-space: nowrap;
+  line-height: 1.6;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.tip-enter-active, .tip-leave-active { transition: opacity 0.15s, transform 0.15s; }
+.tip-enter-from, .tip-leave-to       { opacity: 0; transform: translateY(4px); }
+
+
 .btn-pause {
   display: flex;
   align-items: center;

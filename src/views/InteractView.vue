@@ -491,7 +491,7 @@ function sleep(ms) {
             <CesiumMap3D :key="map3DKey" />
           </div>
           <div class="map3d-footer">
-            <span class="map3d-region">📍 河南省周口 · 小麦主产区</span>
+            <span class="map3d-region">📍 山东省沂南县 · 小麦主产区</span>
             <span class="map3d-note">遥感影像匹配区域</span>
           </div>
         </div>
