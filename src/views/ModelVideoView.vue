@@ -450,6 +450,7 @@ onBeforeUnmount(() => {
   height: 100%;
   object-fit: contain;
   background: rgb(var(--theme-r) var(--theme-g) var(--theme-b));
+  clip-path: inset(40px 0 40px 0);
 }
 
 .video-player::-webkit-media-controls {
@@ -491,7 +492,7 @@ onBeforeUnmount(() => {
   position: relative;
   width: min(100%, 380px);
   aspect-ratio: 1.64 / 1;
-  margin: 0 auto;
+  margin: 0.15rem auto 0.45rem;
   padding: 0.2rem;
   display: flex;
   align-items: center;
@@ -503,14 +504,14 @@ onBeforeUnmount(() => {
 }
 
 .brain-image {
-  width: 90%;
-  height: 90%;
+  width: 120%;
+  height: 120%;
   display: block;
   margin: 0;
   object-fit: contain;
   border-radius: 22px;
-  max-width: 100%;
-  max-height: 100%;
+  max-width: 150%;
+  max-height: 150%;
 }
 
 .history-card {
