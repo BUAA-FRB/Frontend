@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import OverviewView from '@/views/OverviewView.vue'
 import InteractView from '@/views/InteractView.vue'
 import DataView from '@/views/DataView.vue'
+import ModelVideoView from '@/views/ModelVideoView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -27,6 +28,12 @@ const router = createRouter({
       name: 'data',
       component: DataView,
       meta: { title: '数据' },
+    },
+    {
+      path: '/model-video',
+      name: 'model-video',
+      component: ModelVideoView,
+      meta: { title: '3D 建模演示' },
     },
   ],
 })

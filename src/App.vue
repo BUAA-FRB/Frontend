@@ -23,6 +23,9 @@ const route = useRoute()
           <router-link to="/data" class="nav-item" active-class="active">
             <span class="nav-icon">◈</span>数据
           </router-link>
+          <router-link to="/model-video" class="nav-item" active-class="active">
+            <span class="nav-icon">◈</span>3D演示
+          </router-link>
         </nav>
         <div class="nav-badge">Beta v1.0</div>
       </div>
