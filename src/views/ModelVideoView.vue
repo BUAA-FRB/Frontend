@@ -171,6 +171,18 @@ const appendStageHistory = (stageIndex) => {
   })
 }
 
+const forceHistoryScrollToLatest = () => {
+  if (!historyRef.value) return
+  const el = historyRef.value
+  const scrollToLatest = () => {
+    el.scrollTop = el.scrollHeight
+  }
+
+  scrollToLatest()
+  requestAnimationFrame(scrollToLatest)
+  setTimeout(scrollToLatest, 180)
+}
+
 const handleTimeUpdate = () => {
   if (!videoRef.value) return
   const now = videoRef.value.currentTime
@@ -225,18 +237,10 @@ watch(activeStageIndex, () => {
 })
 
 watch(
-  displayedHistory,
+  () => displayedHistory.value.length,
   async () => {
     await nextTick()
-    if (!historyRef.value) return
-    const el = historyRef.value
-    const scrollToLatest = () => {
-      el.scrollTop = el.scrollHeight
-    }
-
-    scrollToLatest()
-    requestAnimationFrame(scrollToLatest)
-    setTimeout(scrollToLatest, 180)
+    forceHistoryScrollToLatest()
   },
   { flush: 'post' },
 )
@@ -307,7 +311,7 @@ onBeforeUnmount(() => {
             <span class="history-count">{{ displayedHistory.length }}</span>
           </div>
           <div ref="historyRef" class="history-scroll">
-            <TransitionGroup name="history-list" tag="div">
+            <TransitionGroup name="history-list" tag="div" @after-enter="forceHistoryScrollToLatest">
               <p
                 v-for="(item, index) in displayedHistory"
                 :key="item.id"
