@@ -474,6 +474,12 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
+.brain-card {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0.1rem;
+}
+
 .card-title {
   display: flex;
   align-items: center;
@@ -490,9 +496,9 @@ onBeforeUnmount(() => {
 
 .brain-grid {
   position: relative;
-  width: min(100%, 380px);
+  width: min(100%, 368px);
   aspect-ratio: 1.64 / 1;
-  margin: 0.15rem auto 0.45rem;
+  margin: 0.15rem auto 0.8rem;
   padding: 0.2rem;
   display: flex;
   align-items: center;
