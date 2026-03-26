@@ -103,7 +103,9 @@ const activeStage = computed(() =>
   stageConfigs.find((stage) => currentTime.value >= stage.start && currentTime.value < stage.end),
 )
 const activeStageIndex = computed(() =>
-  stageConfigs.findIndex((stage) => currentTime.value >= stage.start && currentTime.value < stage.end),
+  stageConfigs.findIndex(
+    (stage) => currentTime.value >= stage.start && currentTime.value < stage.end,
+  ),
 )
 const activeBrainRegions = computed(() => new Set(activeStage.value?.brainHighlight ?? []))
 const brainShapeRegions = computed(() =>
@@ -313,11 +315,7 @@ onBeforeUnmount(() => {
           </div>
           <div ref="historyRef" class="history-scroll">
             <TransitionGroup name="history-list" tag="div">
-              <p
-                v-for="item in displayedHistory"
-                :key="item.id"
-                class="history-line"
-              >
+              <p v-for="item in displayedHistory" :key="item.id" class="history-line">
                 <span class="history-dot"></span>
                 <span class="history-text">{{ item.text }}</span>
               </p>
@@ -357,7 +355,9 @@ onBeforeUnmount(() => {
     rgba(255, 255, 255, 0.96),
     rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.62)
   );
-  box-shadow: 0 8px 24px rgba(83, 84, 67, 0.08), inset 0 0 0 1px rgba(255, 255, 255, 0.65);
+  box-shadow:
+    0 8px 24px rgba(83, 84, 67, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.65);
 }
 
 .video-card.panel-card,
@@ -380,37 +380,41 @@ onBeforeUnmount(() => {
     0 14px 30px rgba(0, 0, 0, 0.34),
     inset 0 0 0 1px rgba(255, 255, 255, 0.05);
   position: relative;
-  margin-bottom: 1.45rem;
+  margin-bottom: 5.2rem;
 }
 
 .layout::after {
   content: '';
   position: absolute;
   left: 50%;
-  bottom: -22px;
-  width: 34px;
-  height: 34px;
+  bottom: -3.65rem;
+  width: 1.2rem;
+  height: 3.5rem;
   transform: translateX(-50%);
-  border-radius: 50%;
-  background: radial-gradient(circle at 34% 30%, #3a3f3c 0%, #1f2321 56%, #111412 100%);
-  border: 2px solid #0a0c0b;
+  border-radius: 0.45rem;
+  background: linear-gradient(180deg, #2a2e2b 0%, #1a1e1c 70%, #131614 100%);
+  border: 1px solid #0c0f0d;
   box-shadow:
-    0 6px 12px rgba(0, 0, 0, 0.32),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    0 8px 12px rgba(0, 0, 0, 0.28),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  z-index: 2;
 }
 
 .layout::before {
   content: '';
   position: absolute;
   left: 50%;
-  bottom: -15px;
-  width: 10px;
-  height: 10px;
+  bottom: -5.45rem;
+  width: 13.2rem;
+  height: 2rem;
   transform: translateX(-50%);
-  border-radius: 50%;
-  border: 2px solid rgba(197, 213, 196, 0.8);
-  border-top-color: transparent;
-  box-shadow: 0 -7px 0 -5px rgba(197, 213, 196, 0.8);
+  border-radius: 2.4rem / 1.15rem;
+  background: radial-gradient(ellipse at 50% 42%, #3a3f3c 0%, #242927 58%, #171a19 100%);
+  border: 1px solid #0d100f;
+  box-shadow:
+    0 10px 16px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  z-index: 1;
 }
 
 .video-card {
@@ -500,7 +504,11 @@ onBeforeUnmount(() => {
   padding: 0.2rem;
   border-radius: 28px;
   border: 1px solid rgba(214, 217, 202, 0.9);
-  background: radial-gradient(circle at 50% 40%, rgba(251, 252, 249, 0.95), rgba(213, 220, 206, 0.88));
+  background: radial-gradient(
+    circle at 50% 40%,
+    rgba(251, 252, 249, 0.95),
+    rgba(213, 220, 206, 0.88)
+  );
 }
 
 .brain-svg {
@@ -608,7 +616,9 @@ onBeforeUnmount(() => {
 }
 
 .history-list-enter-active {
-  transition: opacity 0.4s ease, transform 0.4s ease;
+  transition:
+    opacity 0.4s ease,
+    transform 0.4s ease;
 }
 
 .history-list-enter-from {
@@ -635,6 +645,7 @@ onBeforeUnmount(() => {
     grid-template-columns: 1fr;
     gap: 0.52rem;
     padding: 0.6rem;
+    margin-bottom: 5rem;
   }
 
   .video-card {
