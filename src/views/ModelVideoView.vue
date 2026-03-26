@@ -370,8 +370,47 @@ onBeforeUnmount(() => {
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
-  gap: 1rem;
+  gap: 0.32rem;
   align-items: stretch;
+  padding: 0.45rem;
+  border: 10px solid #0f1110;
+  border-radius: 22px;
+  background: linear-gradient(180deg, #1b1f1d 0%, #141816 100%);
+  box-shadow:
+    0 14px 30px rgba(0, 0, 0, 0.34),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  position: relative;
+  margin-bottom: 1.45rem;
+}
+
+.layout::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -22px;
+  width: 34px;
+  height: 34px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #3a3f3c 0%, #1f2321 56%, #111412 100%);
+  border: 2px solid #0a0c0b;
+  box-shadow:
+    0 6px 12px rgba(0, 0, 0, 0.32),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.layout::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -15px;
+  width: 10px;
+  height: 10px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  border: 2px solid rgba(197, 213, 196, 0.8);
+  border-top-color: transparent;
+  box-shadow: 0 -7px 0 -5px rgba(197, 213, 196, 0.8);
 }
 
 .video-card {
@@ -594,6 +633,8 @@ onBeforeUnmount(() => {
 @media (max-width: 1080px) {
   .layout {
     grid-template-columns: 1fr;
+    gap: 0.52rem;
+    padding: 0.6rem;
   }
 
   .video-card {
