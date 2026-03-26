@@ -31,48 +31,56 @@ const stageConfigs = [
     start: 0,
     end: 6,
     brainFlash: { color: 'red', blink: true, intervalMs: 320 },
+    revealLinesPerSecond: 2,
     histories: ['道路/土地骨架化', '农田实例分割', '统一坐标、分辨率与切片金字塔'],
   },
   {
     start: 6,
     end: 13,
     brainFlash: { color: 'yellow', blink: true, intervalMs: 320 },
+    revealLinesPerSecond: 2,
     histories: ['区域轮廓矢量化'],
   },
   {
     start: 13,
     end: 18,
     brainFlash: { color: 'green', blink: true, intervalMs: 320 },
+    revealLinesPerSecond: 2,
     histories: ['区域可别等级划分'],
   },
   {
     start: 18,
     end: 25,
     brainFlash: { color: 'blue', blink: true, intervalMs: 320 },
+    revealLinesPerSecond: 2,
     histories: ['略略略'],
   },
   {
     start: 25,
     end: 30,
     brainFlash: { color: 'red', blink: true, intervalMs: 320 },
+    revealLinesPerSecond: 2,
     histories: ['略略略'],
   },
   {
     start: 30,
     end: 40,
     brainFlash: { color: 'yellow', blink: true, intervalMs: 320 },
+    revealLinesPerSecond: 2,
     histories: ['略略略'],
   },
   {
     start: 40,
     end: 48,
     brainFlash: { color: 'blue', blink: true, intervalMs: 320 },
+    revealLinesPerSecond: 2,
     histories: ['略略略'],
   },
   {
     start: 48,
     end: Number.POSITIVE_INFINITY,
     brainFlash: { color: 'green', blink: true, intervalMs: 320 },
+    revealLinesPerSecond: 2,
     histories: ['略略略'],
   },
 ]
@@ -127,7 +135,7 @@ const displayedHistory = ref([])
 const processedStageIndex = ref(-1)
 const historyId = ref(0)
 const appendTimerIds = []
-const lastHistoryScrollHeight = ref(0)
+const historyLinePalette = ['#334a34', '#415b3f', '#506b4d', '#2f4530', '#5b724f']
 
 const clearAppendTimers = () => {
   appendTimerIds.forEach((id) => clearTimeout(id))
@@ -139,7 +147,6 @@ const resetHistoryTimeline = () => {
   displayedHistory.value = []
   processedStageIndex.value = -1
   historyId.value = 0
-  lastHistoryScrollHeight.value = 0
 
   if (historyRef.value) {
     historyRef.value.scrollTop = 0
@@ -149,6 +156,8 @@ const resetHistoryTimeline = () => {
 const appendStageHistory = (stageIndex) => {
   const stage = stageConfigs[stageIndex]
   if (!stage) return
+  const linesPerSecond = Math.max(0.2, stage.revealLinesPerSecond || 2)
+  const intervalMs = Math.round(1000 / linesPerSecond)
 
   stage.histories.forEach((text, idx) => {
     const timerId = setTimeout(() => {
@@ -156,7 +165,7 @@ const appendStageHistory = (stageIndex) => {
         id: historyId.value++,
         text,
       })
-    }, idx * 260)
+    }, idx * intervalMs)
 
     appendTimerIds.push(timerId)
   })
@@ -209,7 +218,7 @@ watch(activeStageIndex, (stageIndex) => {
     appendStageHistory(idx)
   }
   processedStageIndex.value = stageIndex
-})
+}, { immediate: true })
 
 watch(activeStageIndex, () => {
   setupBrainBlinkByStage()
@@ -221,20 +230,13 @@ watch(
     await nextTick()
     if (!historyRef.value) return
     const el = historyRef.value
-    const currentHeight = el.scrollHeight
-    const overflow = currentHeight > el.clientHeight
-
-    if (!overflow) {
-      lastHistoryScrollHeight.value = currentHeight
-      return
+    const scrollToLatest = () => {
+      el.scrollTop = el.scrollHeight
     }
 
-    const delta = Math.max(0, currentHeight - lastHistoryScrollHeight.value)
-    el.scrollBy({
-      top: delta || 48,
-      behavior: 'smooth',
-    })
-    lastHistoryScrollHeight.value = currentHeight
+    scrollToLatest()
+    requestAnimationFrame(scrollToLatest)
+    setTimeout(scrollToLatest, 180)
   },
   { flush: 'post' },
 )
@@ -306,7 +308,12 @@ onBeforeUnmount(() => {
           </div>
           <div ref="historyRef" class="history-scroll">
             <TransitionGroup name="history-list" tag="div">
-              <p v-for="item in displayedHistory" :key="item.id" class="history-line">
+              <p
+                v-for="(item, index) in displayedHistory"
+                :key="item.id"
+                class="history-line"
+                :style="{ '--history-line-color': historyLinePalette[index % historyLinePalette.length] }"
+              >
                 <span class="history-dot"></span>
                 <span class="history-text">{{ item.text }}</span>
               </p>
@@ -548,10 +555,10 @@ onBeforeUnmount(() => {
 
 .history-line {
   margin: 0 0 0.62rem;
-  color: #394838;
-  font-size: 0.9rem;
-  line-height: 1.5;
-  font-weight: 600;
+  color: var(--history-line-color, #394838);
+  font-size: 1rem;
+  line-height: 1.55;
+  font-weight: 700;
   word-break: break-word;
   display: flex;
   align-items: flex-start;
